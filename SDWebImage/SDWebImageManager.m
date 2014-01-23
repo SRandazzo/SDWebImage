@@ -173,7 +173,12 @@
                     }
                     else {
                         dispatch_main_sync_safe(^{
-                            completedBlock(downloadedImage, nil, SDImageCacheTypeNone, finished);
+                            //FIXME: This prevents a race/threading condition where cancelAll is called while the subOperation block is executing
+                            //As a result, completion block executes AFTER cancelAll has been called. (with not indication that it was cancelled, which would prevent this issue)
+                            //This can be dangerous when not using weak (but instead __block which is unretained) inside of the SDWebImageManager completion block.
+                            if (!weakOperation.isCancelled) {
+                                completedBlock(downloadedImage, nil, SDImageCacheTypeNone, finished);
+                            }
                         });
 
                         if (downloadedImage && finished) {
