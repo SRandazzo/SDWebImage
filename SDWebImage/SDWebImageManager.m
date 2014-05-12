@@ -127,6 +127,7 @@
             if (options & SDWebImageContinueInBackground) downloaderOptions |= SDWebImageDownloaderContinueInBackground;
             if (options & SDWebImageHandleCookies) downloaderOptions |= SDWebImageDownloaderHandleCookies;
             if (options & SDWebImageAllowInvalidSSLCertificates) downloaderOptions |= SDWebImageDownloaderAllowInvalidSSLCertificates;
+            if (options & SDWebImageHighPriority) downloaderOptions |= SDWebImageDownloaderHighPriority;
             if (image && options & SDWebImageRefreshCached) {
                 // force progressive off if image already cached but forced refreshing
                 downloaderOptions &= ~SDWebImageDownloaderProgressiveDownload;
@@ -171,6 +172,11 @@
                         dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
                             UIImage *transformedImage = [self.delegate imageManager:self transformDownloadedImage:downloadedImage withURL:url];
 
+                            if (transformedImage && finished) {
+                                BOOL imageWasTransformed = ![transformedImage isEqual:downloadedImage];
+                                [self.imageCache storeImage:transformedImage recalculateFromImage:imageWasTransformed imageData:data forKey:key toDisk:cacheOnDisk];
+                            }
+
                             dispatch_main_sync_safe(^{
                                 //FIXME: This prevents a race/threading condition where cancelAll is called while the subOperation block is executing
                                 //As a result, completion block executes AFTER cancelAll has been called. (with not indication that it was cancelled, which would prevent this issue)
@@ -180,13 +186,13 @@
                                 }
                             });
 
-                            if (transformedImage && finished) {
-                                BOOL imageWasTransformed = ![transformedImage isEqual:downloadedImage];
-                                [self.imageCache storeImage:transformedImage recalculateFromImage:imageWasTransformed imageData:data forKey:key toDisk:cacheOnDisk];
-                            }
                         });
                     }
                     else {
+                        if (downloadedImage && finished) {
+                            [self.imageCache storeImage:downloadedImage recalculateFromImage:NO imageData:data forKey:key toDisk:cacheOnDisk];
+                        }
+
                         dispatch_main_sync_safe(^{
                             //FIXME: This prevents a race/threading condition where cancelAll is called while the subOperation block is executing
                             //As a result, completion block executes AFTER cancelAll has been called. (with not indication that it was cancelled, which would prevent this issue)
@@ -195,10 +201,6 @@
                                 completedBlock(downloadedImage, nil, SDImageCacheTypeNone, finished);
                             }
                         });
-
-                        if (downloadedImage && finished) {
-                            [self.imageCache storeImage:downloadedImage recalculateFromImage:NO imageData:data forKey:key toDisk:cacheOnDisk];
-                        }
                     }
                 }
 
